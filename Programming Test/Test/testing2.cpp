@@ -11,5 +11,6 @@ int main()
 	for (int i=1;i<=n;i++)
 		cout << num[i];
 	delete [] num;
+	cin >> n;
 	return 0;
 }
