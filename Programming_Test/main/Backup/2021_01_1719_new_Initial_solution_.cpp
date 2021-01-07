@@ -28,6 +28,7 @@ struct chromosome
 {
 	stop *route[11];
 	int frequency[11];
+	double total_trip_time[11];
 };
 
 
@@ -45,6 +46,7 @@ void InsertAtPos(int pos, stop*& ptr, int randx);
 double Calculate_Total_Route_Time_on_TSW(int num_of_inter_stop, stop* ptr, double shortest_time_matrix[][30]);
 void del(stop*& ptr, int key);
 void replace_node(stop*& ptr, stop* ptr2, int key,int new_node, bool& flag_replace, double shortest_time_matrix[][30], const double Time_max); // Change key to new_node // Do repairing for 1 node only
+void Calculate_Total_trip_time(double& total_trip_time, stop* ptr, double shortest_time_matrix[][30]);
 
 int main()
 {
@@ -89,14 +91,37 @@ int main()
 		for (int j=1;j<=Route_max;j++)
 			gene[i].route[j] = new stop;
 		initialsolution(gene[i].route,TSW_stop,num_of_terminal,num_of_destination,terminal_list,destination_list,Route_max,Time_max,Stop_max,shortest_time_matrix);
+		for (int j=1;j<=Route_max;j++)
+		{
+			gene[i].total_trip_time[j] = 0;
+			Calculate_Total_trip_time(gene[i].total_trip_time[j],gene[i].route[j],shortest_time_matrix);
+		}
+		for (int j=1;j<=Route_max;j++)
+		{
+			if (j<=6)
+				gene[i].frequency[j] = 18;
+			else 
+				gene[i].frequency[j] = 17;
+		}
 	}
+
+	// allocate optimal frequency
+
 
 	// Display 20 genes
 	for (int i=1;i<=20;i++)
 	{
 		cout << endl << "gene[" << i << "] 10 routes:" << endl; 
 		displayallroute(gene[i].route,Route_max);
+		cout << "frequency: ";
+		for (int j=1;j<=Route_max;j++)
+			cout << gene[i].frequency[j] << " ";
+		cout << endl << "Total trip time: ";
+		for (int j=1;j<=Route_max;j++)
+			cout << gene[i].total_trip_time[j] << " ";
+		cout << endl;
 	}
+
 
 	clock_t end = clock();
 	double elapsed = double(end - start)/CLOCKS_PER_SEC;
@@ -576,5 +601,16 @@ void replace_node(stop*& ptr, stop* ptr2, int key,int new_node, bool& flag_repla
 
 }
 
-
+void Calculate_Total_trip_time(double& total_trip_time, stop* ptr, double shortest_time_matrix[][30])
+{
+	const double s = 1.5;
+	stop* temp;
+	temp = ptr;
+	while (temp->next != NULL)
+	{
+		total_trip_time = total_trip_time + s + shortest_time_matrix[temp->index][temp->next->index];
+		temp = temp->next;
+	}
+	total_trip_time -= s;
+}
 

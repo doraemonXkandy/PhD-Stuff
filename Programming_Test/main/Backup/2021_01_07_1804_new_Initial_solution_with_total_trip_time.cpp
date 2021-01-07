@@ -24,9 +24,18 @@ struct stop
 	stop *next;
 };
 
+struct chromosome
+{
+	stop *route[11];
+	int num_of_bus[11];
+	double total_trip_time[11];
+	double Objective;
+	bool direct_service[24][30];
+};
 
 
-void inputnetwork(node TSW_stop[], int terminal_list[], int destination_list[], const int num_of_terminal, const int num_of_destination);
+
+void inputnetwork(node TSW_stop[], int terminal_list[], int destination_list[], const int num_of_terminal, const int num_of_destination, int demand[][30]);
 double Dijkstra(node TSW_stop[], int origin, int destination);
 void initialsolution(stop* route[],node* TSW_stop,const int num_of_terminal,const int num_of_destination,int terminal_list[], int destination_list[], const int Route_max, const int Time_max, const int Stop_max, double shortest_time_matrix[][30]);
 void add2end(stop*& ptr, int x);
@@ -34,23 +43,29 @@ void displayallroute(stop* route[],const int Route_max);
 void delist (stop* ptr[],const int Route_max);
 void deepCopy(stop* ptr, stop*& copy);
 bool exist(int x, stop* ptr);
-int length(stop* ptr);
+int length(stop* ptr);	// Total stop (include origin and destination)
 void InsertAtPos(int pos, stop*& ptr, int randx);
 double Calculate_Total_Route_Time_on_TSW(int num_of_inter_stop, stop* ptr, double shortest_time_matrix[][30]);
 void del(stop*& ptr, int key);
+void replace_node(stop*& ptr, stop* ptr2, int key,int new_node, bool& flag_replace, double shortest_time_matrix[][30], const double Time_max); // Change key to new_node // Do repairing for 1 node only
+void Calculate_Total_trip_time(double& total_trip_time, stop* ptr, double shortest_time_matrix[][30]);
+void Update_frequency_setting(stop* route[], int num_of_bus[],double total_trip_time[],double& Objective,bool direct_service[][30],int demand[][30],double shortest_time_matrix[][30],const int Route_max); // Update for 1 gene
 
 int main()
 {
+	clock_t start = clock();
 	const int num_of_terminal = 7, num_of_destination = 5;
 	const int Route_max = 10;
 	const double Time_max = 35;
 	const int Stop_max = 8;
 	srand(time(NULL));
 
+
 	int terminal_list[num_of_terminal+1];
 	int destination_list[num_of_destination+1];
 	node TSW_stop[30];
 	double shortest_time_matrix[30][30];
+	int demand[24][30];
 
 	// Initialization
 	for (int i=1;i<=29;i++)
@@ -66,26 +81,68 @@ int main()
 	}
 
 	// Input the network from txt file
-	inputnetwork(TSW_stop,terminal_list,destination_list,num_of_terminal,num_of_destination);
-
-
+	inputnetwork(TSW_stop,terminal_list,destination_list,num_of_terminal,num_of_destination,demand);
+	cout << "demand:" << endl;
+	for (int i=1;i<=23;i++)
+	{
+		for (int j=24;j<=28;j++)
+			cout << demand[i][j] << " ";
+		cout << endl;
+	}
 	// Calculate shortest_time_matrix
 	for (int i=1;i<=29;i++)
 		for (int j=1;j<=29;j++)
 			shortest_time_matrix[i][j] = Dijkstra(TSW_stop,i,j);
 
-	// Randomly generate an initial solution
-	stop *route[10];
-	for (int j=1;j<=Route_max;j++)
-		route[j] = new stop;
+	// Randomly generate 20 initial solutions
+	chromosome gene[50];
+	for (int i=1;i<=20;i++)
+	{
+		for (int j=1;j<=Route_max;j++)
+			gene[i].route[j] = new stop;
+		initialsolution(gene[i].route,TSW_stop,num_of_terminal,num_of_destination,terminal_list,destination_list,Route_max,Time_max,Stop_max,shortest_time_matrix);
+		for (int j=1;j<=Route_max;j++)
+		{
+			gene[i].total_trip_time[j] = 0;
+			Calculate_Total_trip_time(gene[i].total_trip_time[j],gene[i].route[j],shortest_time_matrix);
+		}
+		for (int j=1;j<=Route_max;j++)
+		{
+			if (j<=6)
+				gene[i].num_of_bus[j] = 18;
+			else 
+				gene[i].num_of_bus[j] = 17;
+		}
+	}
 
-	initialsolution(route,TSW_stop,num_of_terminal,num_of_destination,terminal_list,destination_list,Route_max,Time_max,Stop_max,shortest_time_matrix);
-	displayallroute(route,Route_max);
+	// allocate optimal frequency setting
+	for (int i=1;i<=20;i++)
+	{
+		Update_frequency_setting(gene[i].route,gene[i].num_of_bus,gene[i].total_trip_time,gene[i].Objective,gene[i].direct_service,demand,shortest_time_matrix,Route_max);
+	}
 
+	// Display 20 genes
+	for (int i=1;i<=20;i++)
+	{
+		cout << endl << "gene[" << i << "] 10 routes:" << endl; 
+		displayallroute(gene[i].route,Route_max);
+		cout << "Num of bus: ";
+		for (int j=1;j<=Route_max;j++)
+			cout << gene[i].num_of_bus[j] << " ";
+		cout << endl << "Total trip time: ";
+		for (int j=1;j<=Route_max;j++)
+			cout << gene[i].total_trip_time[j] << " ";
+		cout << endl;
+	}
+
+
+	clock_t end = clock();
+	double elapsed = double(end - start)/CLOCKS_PER_SEC;
+ 	cout << "Time measured: " << elapsed << "seconds." << endl;
 	return 0;
 }
 
-void inputnetwork(node TSW_stop[], int terminal_list[], int destination_list[], const int num_of_terminal, const int num_of_destination)
+void inputnetwork(node TSW_stop[], int terminal_list[], int destination_list[], const int num_of_terminal, const int num_of_destination, int demand[][30])
 {
 	ifstream fin;
 	int n, temp, num_of_path;
@@ -141,7 +198,14 @@ void inputnetwork(node TSW_stop[], int terminal_list[], int destination_list[], 
 		fin >> dummy;
 	}
 	getline(fin, line);
+	getline(fin, line);
 
+	for (int i=1;i<=23;i++)
+	{
+		for (int j=24;j<=28;j++)
+			fin >> demand[i][j] >> dummy;
+		getline(fin, line);
+	}
 	fin.close();
 
 };
@@ -206,7 +270,9 @@ void initialsolution(stop* route[],node* TSW_stop,const int num_of_terminal,cons
 	bool flag_miss = false; // For checking if any stop missed
 	bool flag_repeat = true; // For checking if the stops already appear within that route
 	bool time_exceed = false;
+
 	int num_of_inter_stop = 0;
+	bool flag_replace;
 	int set_of_check0[24]; // For repairing
 	int set_of_check2[24];	// For repairing
 	int index_for_check0; // For repairing
@@ -266,6 +332,10 @@ void initialsolution(stop* route[],node* TSW_stop,const int num_of_terminal,cons
 		// Initialization of check parameter (Check if any missed stops)
 		for (int j=1;j<= 23;j++)
 			check[j] = 0;
+		for (int j=1;j<= Route_max;j++)
+		{
+			check[route[j]->index]++;
+		}
 
 		for (int i=1;i<=Route_max;i++)
 		{
@@ -357,8 +427,8 @@ void initialsolution(stop* route[],node* TSW_stop,const int num_of_terminal,cons
 		cout << endl;
 		//Debug
 
-		// Only repair if num of missed nodes <= 3
-		if (index_for_check0 <= 3)
+		// Only repair if num of missed nodes <= 1
+		if (index_for_check0-1 <= 1)
 		{
 			for (int j=1;j<index_for_check0;j++)
 			{
@@ -372,7 +442,18 @@ void initialsolution(stop* route[],node* TSW_stop,const int num_of_terminal,cons
 						closest_node = k;
 					}
 				}
-				
+				flag_replace = false;
+				cout << "Closest node: " << set_of_check2[closest_node] << endl;
+				for (int a=1;a<=Route_max;a++)
+				{
+					replace_node(route[a]->next,route[a],set_of_check2[closest_node],set_of_check0[j],flag_replace,shortest_time_matrix,Time_max);
+				}
+				if (flag_replace == true)
+				{
+					check[set_of_check2[closest_node]]--;
+					check[set_of_check0[j]]++;
+				}
+				displayallroute(route,Route_max);
 			}
 		}
 
@@ -399,7 +480,7 @@ void add2end(stop*& ptr, int x)
 void displayallroute(stop* route[],const int Route_max)
 {
 	cout << endl << "Summary: "<< endl;
-	cout << "Route [i]: -> [Bus Terminal] (Dummy)-> [Intermediate stop 1] (Shortest travel time from bus terminal to intermediate stop 1)-> [Intermediate stop 2] (Shortest travel time from intermediate stop 1 to intermediate stop 2)-> ..." << endl;
+	cout << "Route [i]: -> [Bus Terminal] -> [Intermediate stop 1] -> [Intermediate stop 2] -> ..." << endl;
 	stop *ptr;
 	cout << endl;
 	for (int i=1;i<=Route_max;i++)
@@ -514,3 +595,81 @@ void del(stop*& ptr, int key)
 			del(ptr->next,key);
 	}
 }
+
+void replace_node(stop*& ptr, stop* ptr2, int key,int new_node, bool& flag_replace, double shortest_time_matrix[][30], const double Time_max)
+{
+
+	if (ptr != NULL)
+	{
+		if (ptr->index == key && flag_replace == false)
+		{
+			ptr->index = new_node;
+			cout << endl << "TOtal time in TSW" << Calculate_Total_Route_Time_on_TSW(length(ptr2)-2,ptr2,shortest_time_matrix) << endl;
+			if (Calculate_Total_Route_Time_on_TSW(length(ptr2)-2,ptr2,shortest_time_matrix) < Time_max)
+			{
+				
+				flag_replace = true;
+			}
+			else 
+				ptr->index = key;
+			replace_node(ptr->next, ptr2, key, new_node, flag_replace, shortest_time_matrix, Time_max);
+		}
+		else
+			replace_node(ptr->next, ptr2, key, new_node, flag_replace, shortest_time_matrix, Time_max);
+
+	}
+
+}
+
+void Calculate_Total_trip_time(double& total_trip_time, stop* ptr, double shortest_time_matrix[][30])
+{
+	const double s = 1.5;
+	stop* temp;
+	temp = ptr;
+	while (temp->next != NULL)
+	{
+		total_trip_time = total_trip_time + s + shortest_time_matrix[temp->index][temp->next->index];
+		temp = temp->next;
+	}
+	total_trip_time -= s;
+}
+
+void Update_frequency_setting(stop* route[], int num_of_bus[],double total_trip_time[],double& Objective,bool direct_service[][30],int demand[][30],double shortest_time_matrix[][30], const int Route_max)
+{
+	for (int i=1;i<=23;i++)
+	{
+		for (int j=24;j<=28;j++)
+			direct_service[i][j] = false;
+	}
+
+	stop* temp; 
+	stop* temp2;
+
+	// See if there is any direct service
+	for (int i=1;i<=Route_max;i++)
+	{
+		// Find the destination
+		temp = route[i];
+		temp2 = route[i];
+		while (temp->next != NULL)
+		{
+			temp = temp->next;
+		}
+		// Turn each direct service to the above destination to true
+		while (temp2->next->next != NULL)
+		{
+			direct_service[temp2->index][temp->index] = true;
+			temp2 = temp2->next;
+		}
+		direct_service[temp2->index][temp->index] = true;
+	}
+	cout << endl << "separation" << endl;
+	for (int i=1;i<=23;i++)
+	{
+		for (int j=24;j<=28;j++)
+			cout << direct_service[i][j] << " ";
+		cout << endl;
+	}
+
+}
+
