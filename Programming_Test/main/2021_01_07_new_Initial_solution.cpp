@@ -48,11 +48,13 @@ void replace_node(stop*& ptr, stop* ptr2, int key,int new_node, bool& flag_repla
 
 int main()
 {
+	clock_t start = clock();
 	const int num_of_terminal = 7, num_of_destination = 5;
 	const int Route_max = 10;
 	const double Time_max = 35;
 	const int Stop_max = 8;
 	srand(time(NULL));
+
 
 	int terminal_list[num_of_terminal+1];
 	int destination_list[num_of_destination+1];
@@ -95,6 +97,10 @@ int main()
 		cout << endl << "gene[" << i << "] 10 routes:" << endl; 
 		displayallroute(gene[i].route,Route_max);
 	}
+
+	clock_t end = clock();
+	double elapsed = double(end - start)/CLOCKS_PER_SEC;
+ 	cout << "Time measured: " << elapsed << "seconds." << endl;
 	return 0;
 }
 
