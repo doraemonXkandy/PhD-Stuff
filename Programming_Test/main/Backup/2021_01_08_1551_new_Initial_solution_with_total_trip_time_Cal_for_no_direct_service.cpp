@@ -663,29 +663,50 @@ void Update_frequency_setting(stop* route[], double num_of_bus[],double total_tr
 		}
 		direct_service[temp2->index][temp->index] = true;
 	}
-	cout << endl << "separation" << endl;
+
+	// debug
+	cout << endl << "direct_service_matrix" << endl;
 	for (int i=1;i<=23;i++)
 	{
 		for (int j=24;j<=28;j++)
 			cout << direct_service[i][j] << " ";
-		cout << endl;
 	}
+	// debug
 
 	double average_travel_time;
 	double nominator[24][30];
+	double nominator_tran1[24][30];
+
 	double denominator[24][30];
+	double denominator_tran1[24][30];
+
+	double nominator_tran2[30][30];
+	double denominator_tran2[30][30];
+	
 	double new_Objective;
 	double passed_time;
 
+
 	for (int i=1;i<=23;i++)
 	{
-		for (int j=24;j<=28;j++)
+		for (int j=24;j<=29;j++)
 		{
 			nominator[i][j] = 0;
+			nominator_tran1[i][j] = 0;
 			denominator[i][j] = 0;
+			denominator_tran1[i][j] = 0;
+		}
+	}
+	for (int i=1;i<=29;i++)
+	{
+		for (int j=1;j<=29;j++)
+		{
+			denominator_tran2[i][j] = 0;
+			nominator_tran2[i][j] = 0;
 		}
 	}
 
+	// Calculate for those O-D pair with direct service
 	for (int i=1;i<=Route_max;i++)
 	{
 		temp = route[i];
@@ -700,16 +721,48 @@ void Update_frequency_setting(stop* route[], double num_of_bus[],double total_tr
 			nominator[temp2->index][temp->index] += num_of_bus[i]/2/total_trip_time[i]*(total_trip_time[i]-passed_time);
 			denominator[temp2->index][temp->index] += num_of_bus[i]/2/total_trip_time[i];
 			passed_time = passed_time + shortest_time_matrix[temp2->index][temp2->next->index] + 1.5;
-			cout << endl << "hey2" << passed_time << endl;
 			temp2 = temp2->next;
 		}
-		cout << endl << "hey" << temp2->index << endl << temp->index << endl << passed_time << endl << num_of_bus[i] << endl << total_trip_time[i];
 		nominator[temp2->index][temp->index] += num_of_bus[i]/2/total_trip_time[i]*(total_trip_time[i]-passed_time);
-		cout << endl << nominator[temp2->index][temp->index] << endl;
 		denominator[temp2->index][temp->index] += num_of_bus[i]/2/total_trip_time[i];
-
 	}
 
+	// Calculate for those O-D pair with NO direct service
+	for (int i=1;i<=Route_max;i++)
+	{
+		temp = route[i];
+		temp2 = route[i];
+		passed_time = 0;
+		while (temp->next != NULL)
+		{
+			temp = temp->next;
+		}
+		while (temp2->next->next != NULL)
+		{
+			for (int j=24;j<=28;j++)
+			{
+				if (direct_service[temp2->index][j] == false)
+				{
+					nominator_tran1[temp2->index][j] += num_of_bus[i]/2/total_trip_time[i]*(total_trip_time[i]-passed_time- shortest_time_matrix[29][temp->index]);
+					denominator_tran1[temp2->index][j] += num_of_bus[i]/2/total_trip_time[i];
+				}
+			}
+			passed_time = passed_time + shortest_time_matrix[temp2->index][temp2->next->index] + 1.5;
+			temp2 = temp2->next;
+		}
+		for (int j=24;j<=28;j++)
+		{
+			if (direct_service[temp2->index][j] == false)
+			{					
+				nominator_tran1[temp2->index][j] += num_of_bus[i]/2/total_trip_time[i]*(total_trip_time[i]-passed_time- shortest_time_matrix[29][temp->index]);
+				denominator_tran1[temp2->index][j] += num_of_bus[i]/2/total_trip_time[i];
+			}
+		}
+		nominator_tran2[29][temp->index] += num_of_bus[i]/2/total_trip_time[i] * shortest_time_matrix[29][temp->index];
+		denominator_tran2[29][temp->index] += num_of_bus[i]/2/total_trip_time[i];
+	}
+
+	// debug
 	cout << endl << "Nominator: " << endl;
 	for (int i=1;i<=23;i++)
 	{
@@ -719,6 +772,51 @@ void Update_frequency_setting(stop* route[], double num_of_bus[],double total_tr
 			
 		}
 		cout << endl;
+	}
+
+	cout << endl << "Nominator_tran1: " << endl;
+	for (int i=1;i<=23;i++)
+	{
+		for (int j=24;j<=28;j++)
+		{
+			cout << nominator_tran1[i][j] << " ";
+			
+		}
+		cout << endl;
+	}
+
+	cout << endl << "Nominator_tran2: " << endl;
+	for (int i=1;i<=29;i++)
+	{
+		for (int j=1;j<=29;j++)
+		{
+			cout << nominator_tran2[i][j] << " ";
+			
+		}
+		cout << endl;
+	}
+	// debug
+
+	const double B1 = 80;
+	const double B2 = 1;
+	Objective = 0;
+	// Calculate original objective function value
+	for (int i=1;i<=23;i++)
+	{
+		for (int j=24;j<=28;j++)
+		{
+			if (direct_service[i][j] == true)
+			{
+				average_travel_time = (nominator[i][j]+1.0)/denominator[i][j];
+				Objective = Objective + B2*average_travel_time;
+			}
+			if (direct_service[i][j] == false)
+			{
+				average_travel_time = (nominator_tran1[i][j]+1.0)/denominator_tran1[i][j] + (nominator_tran2[29][j]+1.0)/denominator_tran2[29][j];
+				Objective = Objective + B1 + B2*average_travel_time;
+			}
+			cout << endl << i << "," << j << " Objective function: " << Objective << endl;
+		}
 	}
 
 }
