@@ -51,6 +51,11 @@ void replace_node(stop*& ptr, stop* ptr2, int key,int new_node, bool& flag_repla
 void Calculate_Total_trip_time(double& total_trip_time, stop* ptr, double shortest_time_matrix[][30]);
 void Update_frequency_setting(stop* route[], double num_of_bus[],double total_trip_time[],double& Objective,bool direct_service[][30],int demand[][30],double shortest_time_matrix[][30],const int Route_max); // Update for 1 gene
 void Crossover_route(chromosome Parent1,chromosome Parent2, chromosome& Child1, chromosome& Child2);
+void Crossover_stop(chromosome Parent1,chromosome Parent2, chromosome& Child1, chromosome& Child2, double shortest_time_matrix[][30]);
+void deepCopy_start_from(stop* ptr, stop*& copy, int start_from, int numofnodes, int count_node);
+void deepCopy_numofnodes(stop* ptr,stop*& copy,int numofnodes, int count_node2);
+void check_repeated_node(stop* ptr, int& repeated_node);
+
 
 int main()
 {
@@ -136,10 +141,22 @@ int main()
 		cout << endl;
 	}
 
-	// Do route crossover
+	int rand_num;
+	// Do route/stop crossover
 	for (int i=1;i<=19;i=i+2)
 	{
-		Crossover_route(gene[i],gene[i+1],gene[i+20],gene[i+1+20]);
+		rand_num = rand()%2 + 1;
+		if (rand_num == 1)
+		{
+			cout << endl << "Do route crossover" << endl;
+			Crossover_route(gene[i],gene[i+1],gene[i+20],gene[i+1+20]);
+		}
+		if (rand_num == 2)
+		{
+			cout << endl << "Do stop crossover" << endl;
+			Crossover_stop(gene[i],gene[i+1],gene[i+20],gene[i+1+20],shortest_time_matrix);
+		}
+
 	}
 
 	// Display 40 genes (Parents + offspring)
@@ -154,6 +171,28 @@ int main()
 		for (int j=1;j<=Route_max;j++)
 			cout << gene[i].total_trip_time[j] << " ";
 		cout << endl;
+	}
+
+	// Do mutation
+	for (int i=21;i<=40;i++)
+	{
+		rand_num = rand()%10+1;
+		if (rand_num >=1 && rand_num <=4)
+		{
+			cout << endl << "gene["  << i << "] do insert " << endl;
+		}
+		if (rand_num >=5 && rand_num <=8)
+		{
+			cout << endl << "gene["  << i << "] do remove " << endl;
+		}
+		if (rand_num ==9)
+		{
+			cout << endl << "gene["  << i << "] do swap " << endl;
+		}
+		if (rand_num ==10)
+		{
+			cout << endl << "gene["  << i << "] do transfer " << endl;
+		}
 	}
 
 	clock_t end = clock();
@@ -829,12 +868,12 @@ void Update_frequency_setting(stop* route[], double num_of_bus[],double total_tr
 			if (direct_service[i][j] == true)
 			{
 				average_travel_time = (nominator[i][j]+1.0)/denominator[i][j];
-				Objective = Objective + B2*average_travel_time;
+				Objective = Objective + B2*average_travel_time* demand[i][j];
 			}
 			if (direct_service[i][j] == false)
 			{
 				average_travel_time = (nominator_tran1[i][j]+1.0)/denominator_tran1[i][j] + (nominator_tran2[29][j]+1.0)/denominator_tran2[29][j];
-				Objective = Objective + B1 + B2*average_travel_time;
+				Objective = Objective + B1 *demand[i][j]+ B2*average_travel_time *demand[i][j];
 			}
 			cout << endl << i << "," << j << " Objective function: " << Objective << endl;
 		}
@@ -937,12 +976,12 @@ void Update_frequency_setting(stop* route[], double num_of_bus[],double total_tr
 						if (direct_service[i][j] == true)
 						{
 							average_travel_time = (nominator[i][j]+1.0)/denominator[i][j];
-							new_Objective = new_Objective + B2*average_travel_time;
+							new_Objective = new_Objective + B2*average_travel_time * demand[i][j];
 						}
 						if (direct_service[i][j] == false)
 						{
 							average_travel_time = (nominator_tran1[i][j]+1.0)/denominator_tran1[i][j] + (nominator_tran2[29][j]+1.0)/denominator_tran2[29][j];
-							new_Objective = new_Objective + B1 + B2*average_travel_time;
+							new_Objective = new_Objective + B1 *demand[i][j] + B2*average_travel_time *demand[i][j];
 						}
 					}
 				}
@@ -1064,12 +1103,12 @@ void Update_frequency_setting(stop* route[], double num_of_bus[],double total_tr
 						if (direct_service[i][j] == true)
 						{
 							average_travel_time = (nominator[i][j]+1.0)/denominator[i][j];
-							new_Objective = new_Objective + B2*average_travel_time;
+							new_Objective = new_Objective + B2*average_travel_time *demand[i][j];
 						}
 						if (direct_service[i][j] == false)
 						{
 							average_travel_time = (nominator_tran1[i][j]+1.0)/denominator_tran1[i][j] + (nominator_tran2[29][j]+1.0)/denominator_tran2[29][j];
-							new_Objective = new_Objective + B1 + B2*average_travel_time;
+							new_Objective = new_Objective + B1 *demand[i][j] + B2*average_travel_time *demand[i][j];
 						}
 					}
 				}
@@ -1136,6 +1175,194 @@ void Crossover_route(chromosome Parent1,chromosome Parent2, chromosome& Child1, 
 			Child2.num_of_bus[i] = 17;
 		}
 	}
-
 }
+
+void Crossover_stop(chromosome Parent1,chromosome Parent2, chromosome& Child1, chromosome& Child2, double shortest_time_matrix[][30])
+{
+	stop* temp;
+	stop* temp2;
+	int rand_num2,rand_num3;
+	bool flag_same_dest = false;
+	bool array1_10[11];
+	rand_num2 = rand() % 10 + 1;
+	temp = Parent1.route[rand_num2];
+
+	// Find the destination of a random route in parent 1
+	while (temp->next != NULL)
+	{
+		temp = temp->next;
+	}
+
+	for (int i=1;i<=10;i++)
+		array1_10[i] = false; // Random generation with no repeat
+
+	// Randomly find a route in parent 2 which has the same destination
+	while (flag_same_dest == false)
+	{
+		rand_num3 = rand() % 10 + 1;
+		while (array1_10[rand_num3] == true)
+		{
+			rand_num3 = rand() % 10 + 1;
+		}
+		array1_10[rand_num3] = true;
+
+		temp2 = Parent2.route[rand_num3];
+		while (temp2->next != NULL)
+		{
+			temp2 = temp2->next;
+		}
+		if (temp->index == temp2 ->index)
+			flag_same_dest = true;
+	}
+
+	int rand_start1, rand_start2;
+	int exchange_len1, exchange_len2;
+	int len1, len2; // only count no. of intermediate stops
+
+	// Randomly pick a starting node for exchange
+	len1 = length(Parent1.route[rand_num2])-2;
+	len2 = length(Parent2.route[rand_num3])-2;
+
+	rand_start1 = rand()%len1 +1;
+	rand_start2 = rand()%len2 +1;
+
+	exchange_len1 = rand()% (len1-rand_start1+1)+1;
+	exchange_len2 = rand()% (len2-rand_start2+1)+1;
+
+	cout << endl << rand_num2 << " " << len1 << " test9 " << rand_start1 << " " << exchange_len1 << endl;
+	cout << endl << rand_num3 << " " << len2 << " test8 " << rand_start2 << " " << exchange_len2 << endl;
+
+	// Copy Parent1 to Child1 and Copy Parent2 to Child2
+	for (int i=1;i<=10;i++)
+	{
+		deepCopy(Parent1.route[i],Child1.route[i]);
+		Child1.total_trip_time[i] = Parent1.total_trip_time[i];
+		deepCopy(Parent2.route[i],Child2.route[i]);
+		Child2.total_trip_time[i] = Parent2.total_trip_time[i];
+	}
+
+	// Delete the routes that required to do stop crossover
+	stop *temp3;
+	while (Child1.route[rand_num2] != NULL)
+	{
+		temp3 = Child1.route[rand_num2];
+		Child1.route[rand_num2] = Child1.route[rand_num2]->next;
+		delete temp3;
+	}
+	Child1.route[rand_num2] = NULL;
+	Child1.total_trip_time[rand_num2] = 0;
+	while (Child2.route[rand_num3] != NULL)
+	{
+		temp3 = Child2.route[rand_num3];
+		Child2.route[rand_num3] = Child2.route[rand_num3]->next;
+		delete temp3;
+	}
+	Child2.route[rand_num3] = NULL;
+	Child2.total_trip_time[rand_num3] = 0;
+
+	// Do stop crossover
+	stop* temp_Parent1_pos;
+	stop* temp_Parent2_pos;
+	temp_Parent1_pos = Parent1.route[rand_num2];
+	temp_Parent2_pos = Parent2.route[rand_num3];
+	int count_node = 1;
+	deepCopy_start_from(temp_Parent1_pos,Child1.route[rand_num2],1,rand_start1,count_node);
+	deepCopy_start_from(temp_Parent2_pos,Child2.route[rand_num3],1,rand_start2,count_node);
+	for (int i=1;i<=rand_start1;i++)
+	{
+		temp_Parent1_pos = temp_Parent1_pos->next;
+	}
+	for (int i=1;i<=rand_start2;i++)
+	{
+		temp_Parent2_pos = temp_Parent2_pos->next;
+	}
+	deepCopy_start_from(temp_Parent2_pos,Child1.route[rand_num2],rand_start1+1,exchange_len2,count_node);
+	deepCopy_start_from(temp_Parent1_pos,Child2.route[rand_num3],rand_start2+1,exchange_len1,count_node);
+	for (int i=1;i<=exchange_len1;i++)
+	{
+		temp_Parent1_pos = temp_Parent1_pos->next;
+	}
+	for (int i=1;i<=exchange_len2;i++)
+	{
+		temp_Parent2_pos = temp_Parent2_pos->next;
+	}
+	deepCopy_start_from(temp_Parent1_pos,Child1.route[rand_num2],rand_start1+exchange_len2+1,len1+2-(rand_start1+exchange_len1),count_node);
+	deepCopy_start_from(temp_Parent2_pos,Child2.route[rand_num3],rand_start2+exchange_len1+1,len2+2-(rand_start2+exchange_len2),count_node);
+	
+	// Delete repeated nodes
+	int repeated_node = -1;
+	check_repeated_node(Child1.route[rand_num2],repeated_node);
+	while (repeated_node != -1)
+	{
+		del(Child1.route[rand_num2]->next,repeated_node);
+		repeated_node = -1;
+		check_repeated_node(Child1.route[rand_num2],repeated_node);
+	}
+
+	repeated_node = -1;
+	check_repeated_node(Child2.route[rand_num3],repeated_node);
+	while (repeated_node != -1)
+	{
+		del(Child2.route[rand_num3]->next,repeated_node);
+		repeated_node = -1;
+		check_repeated_node(Child2.route[rand_num3],repeated_node);
+	}
+
+	// Calculate total trip time for the route
+	Calculate_Total_trip_time(Child1.total_trip_time[rand_num2], Child1.route[rand_num2], shortest_time_matrix);
+	Calculate_Total_trip_time(Child2.total_trip_time[rand_num3], Child2.route[rand_num3], shortest_time_matrix);
+
+	// Allocate initial num. of bus
+	for (int i=1;i<=10;i++)
+	{
+		if (i<=6)
+		{
+			Child1.num_of_bus[i] = 18;
+			Child2.num_of_bus[i] = 18;
+		}
+		else
+		{
+			Child1.num_of_bus[i] = 17;
+			Child2.num_of_bus[i] = 17;
+		}
+	}
+}
+
+void deepCopy_start_from(stop* ptr, stop*& copy, int start_from, int numofnodes, int count_node)
+{
+	if (start_from == count_node)
+	{
+		int count_node2 = 0;
+		deepCopy_numofnodes(ptr,copy,numofnodes,count_node2);
+	}
+	else deepCopy_start_from(ptr,copy->next,start_from,numofnodes,count_node + 1);
+}
+
+void deepCopy_numofnodes(stop* ptr,stop*& copy,int numofnodes, int count_node2)
+{
+	if (count_node2 < numofnodes)
+	{
+		copy = new stop;
+		copy->index = ptr->index;
+		copy->next = NULL;
+		deepCopy_numofnodes(ptr->next, copy->next,numofnodes,count_node2+1);
+	}
+}
+
+void check_repeated_node(stop* ptr, int& repeated_node)
+{
+	stop *temp;
+	temp = ptr;
+	int check[29];
+	for (int i=1;i<=28;i++)
+		check[i] = 0;
+
+	while (temp != NULL)
+	{
+		check[temp->index]++;
+		if (check[temp->index]>1)
+			repeated_node = temp->index;
+		temp = temp->next;
+	}
+};
 
