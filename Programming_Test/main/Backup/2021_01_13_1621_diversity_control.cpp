@@ -59,6 +59,12 @@ void Mutation_insert(stop* route[]);
 void Mutation_remove(stop* route[]);
 void Mutation_swap(stop* route[]);
 void Mutation_transfer(stop* route[]);
+void stop_sequence_improvement(chromosome& Child,double shortest_time_matrix[][30], const int Route_max);
+void check_repair(chromosome& Child,double shortest_time_matrix[][30], const int Route_max);
+void repair_operator(stop*& ptr,double shortest_time_matrix[][30]);
+void repair_missing(chromosome& Child,double shortest_time_matrix[][30], const int Route_max, const double Time_max);
+void del_gene(chromosome& parent, const int Route_max);
+void deepCopy_gene(chromosome parent, chromosome& copy, const int Route_max);
 
 
 int main()
@@ -217,6 +223,114 @@ int main()
 			cout << gene[i].total_trip_time[j] << " ";
 		cout << endl;
 	}
+
+	// Stop sequence improvement heuristic
+	for (int i=21;i<=40;i++)
+	{
+		cout << endl << "gene[" << i << "]: " << endl;
+		stop_sequence_improvement(gene[i],shortest_time_matrix,Route_max);
+	}
+
+	// Display 40 genes (Parents + offspring)
+	for (int i=1;i<=40;i++)
+	{
+		cout << endl << "gene[" << i << "] 10 routes:" << endl; 
+		displayallroute(gene[i].route,Route_max);
+		cout << "Num of bus: ";
+		for (int j=1;j<=Route_max;j++)
+			cout << gene[i].num_of_bus[j] << " ";
+		cout << endl << "Total trip time: ";
+		for (int j=1;j<=Route_max;j++)
+			cout << gene[i].total_trip_time[j] << " ";
+		cout << endl;
+	}
+
+	// Repair operator
+	for (int i=21;i<=40;i++)
+	{
+		cout << endl << "gene[" << i << "]: " << endl;
+		check_repair(gene[i],shortest_time_matrix,Route_max);
+	}
+
+	// Display 40 genes (Parents + offspring)
+	for (int i=1;i<=40;i++)
+	{
+		cout << endl << "gene[" << i << "] 10 routes:" << endl; 
+		displayallroute(gene[i].route,Route_max);
+		cout << "Num of bus: ";
+		for (int j=1;j<=Route_max;j++)
+			cout << gene[i].num_of_bus[j] << " ";
+		cout << endl << "Total trip time: ";
+		for (int j=1;j<=Route_max;j++)
+			cout << gene[i].total_trip_time[j] << " ";
+		cout << endl;
+	}
+
+	// Repair missing nodes (if missing nodes <= 1 -> repair, otherwise delete it)
+	for (int i=21;i<=40;i++)
+	{
+		cout << endl << "gene[" << i << "]: " << endl;
+		repair_missing(gene[i],shortest_time_matrix,Route_max,Time_max);
+	}
+
+	// Display 40 genes (Parents + offspring)
+	for (int i=1;i<=40;i++)
+	{
+		cout << endl << "gene[" << i << "] 10 routes:" << endl; 
+		displayallroute(gene[i].route,Route_max);
+		cout << "Num of bus: ";
+		for (int j=1;j<=Route_max;j++)
+			cout << gene[i].num_of_bus[j] << " ";
+		cout << endl << "Total trip time: ";
+		for (int j=1;j<=Route_max;j++)
+			cout << gene[i].total_trip_time[j] << " ";
+		cout << endl;
+	}
+
+	// allocate optimal frequency setting for childs
+	for (int i=21;i<=40;i++)
+	{
+		cout << endl << "gene[" << i << "]: optimal frequency2" << endl;
+		if (gene[i].route[1]->index != -1)
+			Update_frequency_setting(gene[i].route,gene[i].num_of_bus,gene[i].total_trip_time,gene[i].Objective,gene[i].direct_service,demand,shortest_time_matrix,Route_max);
+		else gene[i].Objective = 999999999;
+	}
+
+	// Display 40 genes (Parents + offspring)
+	for (int i=1;i<=40;i++)
+	{
+		cout << endl << "gene[" << i << "] 10 routes:" << endl; 
+		displayallroute(gene[i].route,Route_max);
+		cout << "Num of bus: ";
+		for (int j=1;j<=Route_max;j++)
+			cout << gene[i].num_of_bus[j] << " ";
+		cout << endl << "Total trip time: ";
+		for (int j=1;j<=Route_max;j++)
+			cout << gene[i].total_trip_time[j] << " ";
+		cout << endl << "Objective: " << gene[i].Objective << endl;
+
+	}
+
+	// Diversity control
+	cout << endl << "Diversity control" << endl;
+
+	del_gene(gene[18],Route_max);
+	deepCopy_gene(gene[16],gene[18] ,Route_max);
+
+	// Display 40 genes (Parents+ offspring)
+	for (int i=1;i<=40;i++)
+	{
+		cout << endl << "gene[" << i << "] 10 routes:" << endl; 
+		displayallroute(gene[i].route,Route_max);
+		cout << "Num of bus: ";
+		for (int j=1;j<=Route_max;j++)
+			cout << gene[i].num_of_bus[j] << " ";
+		cout << endl << "Total trip time: ";
+		for (int j=1;j<=Route_max;j++)
+			cout << gene[i].total_trip_time[j] << " ";
+		cout << endl << "Objective: " << gene[i].Objective << endl;
+	}
+
 
 	clock_t end = clock();
 	double elapsed = double(end - start)/CLOCKS_PER_SEC;
@@ -706,6 +820,7 @@ void replace_node(stop*& ptr, stop* ptr2, int key,int new_node, bool& flag_repla
 void Calculate_Total_trip_time(double& total_trip_time, stop* ptr, double shortest_time_matrix[][30])
 {
 	const double s = 1.5;
+	total_trip_time = 0;
 	stop* temp;
 	temp = ptr;
 	while (temp->next != NULL)
@@ -1207,7 +1322,10 @@ void Crossover_stop(chromosome Parent1,chromosome Parent2, chromosome& Child1, c
 	int rand_num2,rand_num3;
 	bool flag_same_dest = false;
 	bool array1_10[11];
+	int len1, len2; // only count no. of intermediate stops
+
 	rand_num2 = rand() % 10 + 1;
+
 	temp = Parent1.route[rand_num2];
 
 	// Find the destination of a random route in parent 1
@@ -1238,13 +1356,52 @@ void Crossover_stop(chromosome Parent1,chromosome Parent2, chromosome& Child1, c
 			flag_same_dest = true;
 	}
 
-	int rand_start1, rand_start2;
-	int exchange_len1, exchange_len2;
-	int len1, len2; // only count no. of intermediate stops
-
-	// Randomly pick a starting node for exchange
 	len1 = length(Parent1.route[rand_num2])-2;
 	len2 = length(Parent2.route[rand_num3])-2;
+
+	// prevent length == 2
+	while (len1 == 0 || len2 == 0)
+	{
+		flag_same_dest = false;
+		rand_num2 = rand() % 10 + 1;
+
+		temp = Parent1.route[rand_num2];
+
+		// Find the destination of a random route in parent 1
+		while (temp->next != NULL)
+		{
+			temp = temp->next;
+		}
+
+		for (int i=1;i<=10;i++)
+			array1_10[i] = false; // Random generation with no repeat
+
+		// Randomly find a route in parent 2 which has the same destination
+		while (flag_same_dest == false)
+		{
+			rand_num3 = rand() % 10 + 1;
+			while (array1_10[rand_num3] == true)
+			{
+				rand_num3 = rand() % 10 + 1;
+			}
+			array1_10[rand_num3] = true;
+
+			temp2 = Parent2.route[rand_num3];
+			while (temp2->next != NULL)
+			{
+				temp2 = temp2->next;
+			}
+			if (temp->index == temp2 ->index)
+				flag_same_dest = true;
+		}
+
+		len1 = length(Parent1.route[rand_num2])-2;
+		len2 = length(Parent2.route[rand_num3])-2;
+	}
+
+	// Randomly pick a starting node for exchange
+	int rand_start1, rand_start2;
+	int exchange_len1, exchange_len2;
 
 	rand_start1 = rand()%len1 +1;
 	rand_start2 = rand()%len2 +1;
@@ -1437,6 +1594,13 @@ void Mutation_remove(stop* route[])
 
 	// Randomly select a removing pos
 	len = length(route[rand_route]);
+
+	// Prevent len == 2
+	while (len == 2)
+	{
+		rand_route = rand()%10 +1;
+		len = length(route[rand_route]);
+	}
 	rand_pos = rand()% (len-2)+2;
 
 	// Find the stop at the above pos.
@@ -1468,9 +1632,24 @@ void Mutation_swap(stop* route[])
 		rand_route2 = rand()%10+1;
 	}
 
-	// Randomly select two pos
+	
 	len1 = length(route[rand_route1]);
 	len2 = length(route[rand_route2]);
+
+	// prevent len == 2
+	while (len1 == 2 || len2 == 2)
+	{
+		rand_route1 = rand()%10 +1;
+		rand_route2 = rand()%10 +1;
+		while (rand_route2 == rand_route1)
+		{
+			rand_route2 = rand()%10+1;
+		}
+		len1 = length(route[rand_route1]);
+		len2 = length(route[rand_route2]);
+	}
+
+	// Randomly select two pos
 	rand_pos1 = rand() % len1 + 1;
 
 	if (rand_pos1 == 1)
@@ -1530,6 +1709,451 @@ void Mutation_swap(stop* route[])
 
 void Mutation_transfer(stop* route[])
 {
+	int rand_route1;
+	int rand_route2;
+	int rand_pos1;
+	int rand_pos2;
+
+	int len1, len2;
+	// Randomly select two route
+	rand_route1 = rand()%10 +1;
+	rand_route2 = rand()%10 +1;
+	while (rand_route2 == rand_route1)
+	{
+		rand_route2 = rand()%10+1;
+	}
+
+	len1 = length(route[rand_route1]);
+	len2 = length(route[rand_route2]);
+
+	// prevent len == 2
+	while (len1 == 2 || len2 == 2)
+	{
+		rand_route1 = rand()%10 +1;
+		rand_route2 = rand()%10 +1;
+		while (rand_route2 == rand_route1)
+		{
+			rand_route2 = rand()%10+1;
+		}
+
+		len1 = length(route[rand_route1]);
+		len2 = length(route[rand_route2]);
+	}
+
+	// Randomly select two pos
+	rand_pos1 = rand() % (len1-2) + 2;
+	rand_pos2 = rand() % (len2-2) + 2;
+
+	int transfer_node1, transfer_node2;
+	// Find the stop at the above pos.
+	stop* temp1;
+	temp1 = route[rand_route1];
+	for (int i=1;i<rand_pos1;i++)
+	{
+		temp1 = temp1->next;
+	}
+	transfer_node1 = temp1->index;
+
+	stop* temp2;
+	temp2 = route[rand_route2];
+	for (int i=1;i<rand_pos2;i++)
+	{
+		temp2 = temp2->next;
+	}
+	transfer_node2 = temp2->index;
+
+	cout << endl << "node " << transfer_node1 << " from route[" << rand_route1 << "] is transfered to route[" << rand_route2 << "] after the node " << transfer_node2 << endl;
+	InsertAtPos(rand_pos2, route[rand_route2], transfer_node1);
+	del(route[rand_route1], transfer_node1);
+
+	// Check for repeated nodes 
+	// Remove if repeated
+	int repeated_node = -1;
+	check_repeated_node(route[rand_route2],repeated_node);
+	if (repeated_node != -1)
+	{
+		del(route[rand_route2]->next,repeated_node);
+	}
+}
+
+void stop_sequence_improvement(chromosome& Child,double shortest_time_matrix[][30], const int Route_max)
+{
+	int len;
+	int temp_stop;
+	stop* temp;
+	stop* temp2;
+	bool improved;
+	double new_total_trip_time;
+
+	for (int r=1;r<=Route_max;r++)
+	{
+		Calculate_Total_trip_time(Child.total_trip_time[r],Child.route[r],shortest_time_matrix);
+		len = length(Child.route[r]);
+		improved = false;
+
+		cout << endl << "Route [" << r << "]: " << endl;
+		for (int i=2;i<=len-2;i++)
+		{
+			for (int j=i+1;j<=len-1;j++)
+			{
+				temp = Child.route[r];
+				temp2 = Child.route[r];
+				// temp points to stop no. j
+				for (int k=1;k<i;k++)
+				{
+					temp = temp->next;
+				}
+				for (int k=1;k<j;k++)
+				{
+					temp2 = temp2->next;
+				}
+
+				//	exchange stop no. j and no. j+1
+				temp_stop = temp->index;
+				temp->index = temp2->index;
+				temp2->index = temp_stop;
+				Calculate_Total_trip_time(new_total_trip_time,Child.route[r],shortest_time_matrix);
+
+				cout << endl << "i:" << i << ", j: " << j << " _ "  << new_total_trip_time << endl;
+				if (new_total_trip_time < Child.total_trip_time[r]) 
+				{
+					// New is better
+					cout << endl << "Route [" << r << "] exchange node no." << i << " and " << j << endl;
+					Child.total_trip_time[r] = new_total_trip_time;
+					improved = true;
+				}
+				else
+				{
+					temp_stop = temp->index;
+					temp->index = temp2->index;
+					temp2->index = temp_stop;
+				}
+			}
+		}
+		while (improved == true)
+		{
+			Calculate_Total_trip_time(Child.total_trip_time[r],Child.route[r],shortest_time_matrix);
+			len = length(Child.route[r]);
+			improved = false;
+
+			cout << endl << "Route [" << r << "]: " << endl;
+			for (int i=2;i<=len-2;i++)
+			{
+				for (int j=i+1;j<=len-1;j++)
+				{
+					temp = Child.route[r];
+					temp2 = Child.route[r];
+					// temp points to stop no. j
+					for (int k=1;k<i;k++)
+					{
+						temp = temp->next;
+					}
+					for (int k=1;k<j;k++)
+					{
+						temp2 = temp2->next;
+					}
+
+					//	exchange stop no. j and no. j+1
+					temp_stop = temp->index;
+					temp->index = temp2->index;
+					temp2->index = temp_stop;
+					Calculate_Total_trip_time(new_total_trip_time,Child.route[r],shortest_time_matrix);
+
+					cout << endl << "i:" << i << ", j: " << j << " _ "  << new_total_trip_time << endl;
+					if (new_total_trip_time < Child.total_trip_time[r]) 
+					{
+						// New is better
+						cout << endl << "Route [" << r << "] exchange node no." << i << " and " << j << endl;
+						Child.total_trip_time[r] = new_total_trip_time;
+						improved = true;
+					}
+					else
+					{
+						temp_stop = temp->index;
+						temp->index = temp2->index;
+						temp2->index = temp_stop;
+					}
+				}
+			}
+		}
+	}
+}
+
+void check_repair(chromosome& Child,double shortest_time_matrix[][30], const int Route_max)
+{
+	int num_of_inter_stop;
+	double time_on_TSW;
+	for (int r=1;r<=Route_max;r++)
+	{
+		num_of_inter_stop = length(Child.route[r])-2;
+		time_on_TSW = Calculate_Total_Route_Time_on_TSW(num_of_inter_stop,Child.route[r],shortest_time_matrix);
+		while (num_of_inter_stop > 8 || time_on_TSW > 35)
+		{
+			cout << endl << "route [" << r << "]_ time on TSW: " << time_on_TSW << endl;
+			repair_operator(Child.route[r],shortest_time_matrix);
+			num_of_inter_stop = length(Child.route[r])-2;
+			time_on_TSW = Calculate_Total_Route_Time_on_TSW(num_of_inter_stop,Child.route[r],shortest_time_matrix);
+		}
+	}
+}
+
+void repair_operator(stop*& ptr,double shortest_time_matrix[][30])
+{
+	stop* temp;
+	stop* temp2;
+	temp = NULL;
+	int len;
+	int del_save;
+	int del_stop;
+	double total_trip_time_1 = 9999;
+	double new_total_trip_time_1;
+	len = length(ptr);
+	for (int i=2;i<=len-1;i++)
+	{
+		// Clear temp
+		while (temp != NULL)
+		{
+			temp2 = temp;
+			temp = temp->next;
+			delete temp2;
+		}
+		temp = NULL;
+
+		// Copy ptr to temp
+		deepCopy(ptr, temp);
+
+		// Delete temp's stop no. i
+		temp2 = temp;
+		for (int j=1;j<i;j++)
+		{
+			temp2 = temp2->next;
+		}
+		del_stop = temp2->index;
+		del(temp,del_stop);
+
+		// Check if the new total trip time is reduced
+		Calculate_Total_trip_time(new_total_trip_time_1,temp,shortest_time_matrix);
+		if (new_total_trip_time_1 < total_trip_time_1)
+		{
+			total_trip_time_1 = new_total_trip_time_1;
+			del_save = del_stop;
+		}
+	}
+
+	cout << endl << "Delete node " << del_save << " gives the max. reduction of time" << endl;
+	del(ptr, del_save);
 
 }
+
+void repair_missing(chromosome& Child,double shortest_time_matrix[][30], const int Route_max, const double Time_max)
+{
+	// count no. of visit
+	int check[30];
+	for (int i=1;i<=29;i++)
+		check[i] = 0;
+
+	stop* temp;
+	for (int r=1;r<=Route_max;r++)
+	{
+		temp = Child.route[r];
+		while (temp != NULL)
+		{
+			check[temp->index]++;
+			temp = temp->next;
+		}
+	}
+
+	int set_of_check0[24]; // For repairing
+	int set_of_check2[24];	// For repairing
+	int index_for_check0; // For repairing
+	int index_for_check2; // For repairing
+	double shortest_travel_time_for_repairing; // For repairing
+	int closest_node; // For repairing
+	bool flag_replace; // For repairing
+
+	for (int j=1;j<= 23;j++)
+	{
+		set_of_check0[j] = 0;
+		set_of_check2[j] = 0; 
+	}
+	index_for_check0 = 1;
+	index_for_check2 = 1;
+
+	for (int j=1;j<=23;j++)
+	{
+		if (check[j] == 0)
+		{
+			set_of_check0[index_for_check0] = j;
+			index_for_check0++;
+		}
+		if (check[j] > 1)
+		{
+			set_of_check2[index_for_check2] = j;
+			index_for_check2++;
+		}
+	}
+
+	// Debug
+	cout << endl << "Missing: " << endl;
+	for (int j=1;j<index_for_check0;j++)
+	{
+		cout << set_of_check0[j] << " ";
+	}
+	cout << endl;
+	for (int j=1;j<index_for_check2;j++)
+	{
+		cout << set_of_check2[j] << " ";
+	}
+	cout << endl;
+	//Debug
+
+	// Only repair if num of missed nodes <= 1
+	if (index_for_check0-1 <= 1)
+	{
+		for (int j=1;j<index_for_check0;j++)
+		{
+			shortest_travel_time_for_repairing = 9999;
+			closest_node = 99;
+			for (int k=1;k<index_for_check2;k++)
+			{
+				if (shortest_time_matrix[set_of_check0[j]][set_of_check2[k]] < shortest_travel_time_for_repairing)
+				{
+					shortest_travel_time_for_repairing = shortest_time_matrix[set_of_check0[j]][set_of_check2[k]];
+					closest_node = k;
+				}
+			}
+			flag_replace = false;
+			cout << "Closest node: " << set_of_check2[closest_node] << endl;
+			for (int a=1;a<=Route_max;a++)
+			{
+				replace_node(Child.route[a]->next,Child.route[a],set_of_check2[closest_node],set_of_check0[j],flag_replace,shortest_time_matrix,Time_max);
+			}
+			if (flag_replace == true)
+			{
+				check[set_of_check2[closest_node]]--;
+				check[set_of_check0[j]]++;
+			}
+			
+		}
+	}
+	if (index_for_check0-1 > 1 || (flag_replace == false && index_for_check0-1 == 1))
+	{
+		cout << endl << "Repair fails, destroy this child" << endl;
+		Child.route[1]->index = -1;
+	}
+
+	// Repair destination (route crossover can miss some destination)
+	int set_of_dest_check0[29];
+	int set_of_dest_check2[29];
+	int index_for_dest_check0;
+	int index_for_dest_check2;
+
+	for (int j=24;j<= 28;j++)
+	{
+		set_of_dest_check0[j] = 0;
+		set_of_dest_check2[j] = 0; 
+	}
+	index_for_dest_check0 = 1;
+	index_for_dest_check2 = 1;
+
+	for (int j=24;j<=28;j++)
+	{
+		if (check[j] == 0)
+		{
+			set_of_dest_check0[index_for_dest_check0] = j;
+			index_for_dest_check0++;
+		}
+		if (check[j] > 1)
+		{
+			set_of_dest_check2[index_for_dest_check2] = j;
+			index_for_dest_check2++;
+		}
+	}
+
+	// Debug
+	for (int j=1;j<index_for_dest_check0;j++)
+	{
+		cout << endl << "Missing destination: " << endl;
+		cout << set_of_dest_check0[j] << " ";
+	}
+	cout << endl;
+	for (int j=1;j<index_for_dest_check2;j++)
+	{
+		cout << set_of_dest_check2[j] << " ";
+	}
+	cout << endl;
+	//Debug
+
+	if (index_for_dest_check0-1 > 1)
+	{
+		cout << endl << "Missing too much destination, destroy this child" << endl;
+		Child.route[1]->index = -1;		
+	}
+
+	int num_of_destination_stop = 0;
+	int replace_destination;
+	bool flag_destination_replace = false;
+	stop* temp9;
+
+	// Repair if missing destination == 1
+	if (index_for_dest_check0-1 == 1)
+	{
+		for (int j=1;j<=index_for_dest_check2-1;j++)
+		{
+			if (check[set_of_dest_check2[j]] > num_of_destination_stop)
+			{
+				num_of_destination_stop = check[set_of_dest_check2[j]];
+				replace_destination = set_of_dest_check2[j];
+			}
+		}
+
+		for (int r=1;r<=10 && flag_destination_replace == false;r++)
+		{
+			temp9 = Child.route[r];
+			while (temp9->next != NULL)
+			{
+				temp9 = temp9 -> next;
+			}
+			if (temp9 -> index == replace_destination)
+			{
+				temp9 -> index = set_of_dest_check0[1];
+				flag_destination_replace = true;
+				cout << endl << "destination* " << replace_destination << " is replaced by " << set_of_dest_check0[1] << endl;
+			}
+		}
+	}
+}
+
+void del_gene(chromosome& parent, const int Route_max)
+{
+	delist(parent.route,Route_max);
+	for (int i=1;i<=Route_max;i++)
+	{
+		parent.num_of_bus[i] = 0;
+		parent.total_trip_time[i] = 0;
+		parent.Objective = 999999999;
+	}
+}
+
+void deepCopy_gene(chromosome parent, chromosome& copy, const int Route_max)
+{
+	for (int i=1;i<=Route_max;i++)
+	{
+		deepCopy(parent.route[i],copy.route[i]);
+		copy.num_of_bus[i] = parent.num_of_bus[i];
+		copy.total_trip_time[i] = parent.total_trip_time[i];
+	}
+	copy.Objective = parent.Objective;
+
+	for (int i=1;i<=23;i++)
+	{
+		for (int j=24;j<=28;j++)
+		{
+			copy.direct_service[i][j] = parent.direct_service[i][j];
+		}
+	}
+
+}
+
+
 
