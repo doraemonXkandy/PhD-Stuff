@@ -2321,13 +2321,14 @@ void Diversity_control(chromosome gene[], const int Route_max)
 	double L2;
 	double prob_survive;
 	double rand_num;
-
+	bool flag_duplicate;
 	for (int i=2;i<=40 && index_for_gene <20;i++)
 	{
 		if (control[i].route[1]->index != -1)
 		{
 			h = L1;
 			L2 = 0;
+			flag_duplicate = false;
 			for (int r=1;r<=Route_max;r++)
 			{
  				temp = control[i].route[r];
@@ -2359,7 +2360,12 @@ void Diversity_control(chromosome gene[], const int Route_max)
 			cout << endl << "control [" << i << "], L2: " << L2 << ", h: " << h << " , prob: "<< prob_survive << " , rand_num: " << rand_num << endl;
 			// debug end
 
-			if (prob_survive >= rand_num)
+			for (int j=2;j<= index_for_gene;j++)
+			{
+				if (control[i].Objective == gene[j].Objective)
+					flag_duplicate = true;
+			}
+			if (prob_survive >= rand_num && h != 0 && flag_duplicate == false)
 			{
 				index_for_gene++;
 				deepCopy_gene(control[i],gene[index_for_gene],Route_max);
